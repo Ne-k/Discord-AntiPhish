@@ -1,0 +1,76 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run Discord Bot",
+			"type": "shell",
+			"command": ".venv/Scripts/python.exe",
+			"args": [
+				"main.py"
+			],
+			"group": "build",
+			"problemMatcher": [],
+			"isBackground": true,
+			"options": {
+				"env": {
+					"PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src"
+				}
+			}
+		},
+		{
+			"label": "Run Bot (Direct)",
+			"type": "shell",
+			"command": ".venv/Scripts/python.exe",
+			"args": [
+				"src/core/main.py"
+			],
+			"group": "build",
+			"problemMatcher": [],
+			"isBackground": true,
+			"options": {
+				"env": {
+					"PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src"
+				}
+			}
+		},
+		{
+			"label": "Test Full System",
+			"type": "shell",
+			"command": ".venv/Scripts/python.exe",
+			"args": [
+				"src/tests/test_full_system.py"
+			],
+			"group": "test",
+			"problemMatcher": [],
+			"options": {
+				"env": {
+					"PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src"
+				}
+			}
+		},
+		{
+			"label": "Install Dependencies",
+			"type": "shell",
+			"command": ".venv/Scripts/pip.exe",
+			"args": [
+				"install",
+				"-r",
+				"requirements.txt"
+			],
+			"group": "build",
+			"problemMatcher": []
+		},
+		{
+			"label": "Lint Code",
+			"type": "shell",
+			"command": ".venv/Scripts/flake8.exe",
+			"args": [
+				"src/",
+				"--max-line-length=120",
+				"--exclude=__pycache__,.git,.venv"
+			],
+			"group": "test",
+			"problemMatcher": []
+		}
+	]
+}

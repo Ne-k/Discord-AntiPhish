@@ -1,0 +1,52 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"python.defaultInterpreterPath": "./.venv/Scripts/python.exe",
+		"python.terminal.activateEnvironment": true,
+		"python.analysis.extraPaths": [
+			"./src"
+		],
+		"python.analysis.include": [
+			"src/**"
+		],
+		"files.exclude": {
+			"**/__pycache__": true,
+			"**/*.pyc": true,
+			"**/.pytest_cache": true,
+			"**/.mypy_cache": true,
+			".venv/": true
+		},
+		"search.exclude": {
+			"**/__pycache__": true,
+			"**/*.pyc": true,
+			".venv/": true
+		},
+		"python.linting.enabled": true,
+		"python.linting.pylintEnabled": false,
+		"python.linting.flake8Enabled": true,
+		"python.linting.flake8Args": [
+			"--max-line-length=120",
+			"--exclude=__pycache__,.git,.venv"
+		],
+		"python.formatting.provider": "black",
+		"python.formatting.blackArgs": [
+			"--line-length=120"
+		],
+		"editor.formatOnSave": true,
+		"python.analysis.autoImportCompletions": true,
+		"python.analysis.typeCheckingMode": "basic"
+	},
+	"extensions": {
+		"recommendations": [
+			"ms-python.python",
+			"ms-python.debugpy",
+			"ms-python.flake8",
+			"ms-python.black-formatter",
+			"ms-vscode.vscode-json"
+		]
+	}
+}

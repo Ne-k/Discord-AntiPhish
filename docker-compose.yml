@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  discord-bot:
+    build: .
+    container_name: phishing-detection-bot
+    restart: unless-stopped
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+    volumes:
+      - ./data:/app/data
+      - ./guild_config.db:/app/guild_config.db
+    networks:
+      - bot-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  bot-network:
+    driver: bridge
+
+volumes:
+  bot-data:
+    driver: local
