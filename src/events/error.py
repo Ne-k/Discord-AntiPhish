@@ -26,16 +26,33 @@ async def on_app_command_error(bot, interaction: discord.Interaction, error):
         elif isinstance(error, discord.app_commands.CommandNotFound):
             return  # Ignore command not found errors
 
+        elif isinstance(error, discord.HTTPException):
+            if error.code == 10062:  # Unknown interaction
+                logger.warning(f"Unknown interaction error: {error}")
+                message = "❌ Interaction expired or bot was restarted. Please try the command again."
+            elif error.code == 40060:  # Interaction has already been acknowledged
+                logger.warning(f"Interaction already acknowledged: {error}")
+                return  # Can't respond to already acknowledged interaction
+            else:
+                logger.error(f"Discord HTTP error: {error}")
+                message = f"❌ Discord API error: {error}. Please try again in a moment."
+
         else:
             logger.error(f"Unhandled app command error: {error}")
             logger.error(f"Traceback: {traceback.format_exc()}")
             message = "❌ An unexpected error occurred while processing the command."
 
         # Send error message
-        if interaction.response.is_done():
-            await interaction.followup.send(message, ephemeral=True)
-        else:
-            await interaction.response.send_message(message, ephemeral=True)
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(message, ephemeral=True)
+            else:
+                await interaction.response.send_message(message, ephemeral=True)
+        except discord.HTTPException as send_error:
+            if send_error.code == 10062:  # Unknown interaction - can't respond
+                logger.warning("Could not send error response - interaction expired")
+            else:
+                logger.error(f"Failed to send error response: {send_error}")
 
     except Exception as e:
         logger.error(f"Error in error handler: {e}")

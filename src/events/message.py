@@ -431,6 +431,60 @@ async def on_message(bot, message):
             logger.debug(f"Skipping message from admin user {message.author} in guild {message.guild.name}")
             return
 
+    # Check autoresponder first (independent of protection settings)
+    try:
+        autoresponse_data = await autoresponder_engine.process_message(message)
+        if autoresponse_data:
+            logger.info(f"Sending autoresponse to {message.author} in guild {message.guild.name}")
+            try:
+                # Prepare the response based on settings
+                response_message = autoresponse_data['message']
+                use_embeds = autoresponse_data['use_embeds']
+                use_reply = autoresponse_data['use_reply']
+                rule_name = autoresponse_data['rule_name']
+                embed_config = autoresponse_data['embed_config']
+                is_json_embed = autoresponse_data.get('is_json_embed', False)
+                
+                # Create the response
+                if is_json_embed:
+                    # Handle JSON embed format - create embed from JSON
+                    try:
+                        embed = autoresponder_engine._create_embed_from_json(response_message, rule_name, embed_config)
+                        if use_reply:
+                            await message.reply(embed=embed)
+                        else:
+                            await message.channel.send(embed=embed)
+                    except Exception as e:
+                        logger.error(f"Error creating JSON embed: {e}, falling back to text")
+                        # Fallback to text if JSON parsing fails
+                        if use_reply:
+                            await message.reply(f"⚠️ Embed parsing failed: {response_message}")
+                        else:
+                            await message.channel.send(f"⚠️ Embed parsing failed: {response_message}")
+                            
+                elif use_embeds:
+                    # Send as embed using guild configuration
+                    embed = autoresponder_engine._create_guild_configured_embed(response_message, rule_name, embed_config)
+                    
+                    if use_reply:
+                        await message.reply(embed=embed)
+                    else:
+                        await message.channel.send(embed=embed)
+                else:
+                    # Send as plain text
+                    if use_reply:
+                        await message.reply(response_message)
+                    else:
+                        await message.channel.send(response_message)
+                        
+            except discord.Forbidden:
+                logger.warning(f"No permission to send autoresponse in channel {message.channel.name}")
+            except Exception as e:
+                logger.error(f"Error sending autoresponse: {e}")
+    except Exception as e:
+        logger.error(f"Error in autoresponder processing: {e}")
+        performance_monitor.track_error("autoresponder")
+
     # Get guild protection settings
     guild_settings = {
         'anti_phish': get_guild_anti_phish_enabled(message.guild.id),
@@ -440,30 +494,14 @@ async def on_message(bot, message):
 
     logger.debug(f"Guild {message.guild.name} protection settings: {guild_settings}")
 
-    # Skip if no protection is enabled
+    # Skip threat analysis if no protection is enabled
     if not any(guild_settings.values()):
-        logger.debug(f"No protection enabled for guild {message.guild.name}, skipping")
+        logger.debug(f"No protection enabled for guild {message.guild.name}, skipping threat analysis")
         return
 
     # Initialize engine if needed
     if not optimized_engine._initialized:
         await optimized_engine.initialize()
-
-    # Check autoresponder first (before threat analysis)
-    try:
-        autoresponse = await autoresponder_engine.process_message(message)
-        if autoresponse:
-            logger.info(f"Sending autoresponse to {message.author} in guild {message.guild.name}")
-            try:
-                # Send response in the same channel
-                await message.channel.send(autoresponse)
-            except discord.Forbidden:
-                logger.warning(f"No permission to send autoresponse in channel {message.channel.name}")
-            except Exception as e:
-                logger.error(f"Error sending autoresponse: {e}")
-    except Exception as e:
-        logger.error(f"Error in autoresponder processing: {e}")
-        performance_monitor.track_error("autoresponder")
 
     # Analyze message content for threats
     try:

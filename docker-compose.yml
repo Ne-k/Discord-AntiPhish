@@ -7,16 +7,37 @@ services:
     restart: unless-stopped
     environment:
       - BOT_TOKEN=${BOT_TOKEN}
+      - DEV=${DEV}
+      - PYTHONPATH=/app:/app/src
     volumes:
+      # Database and persistent data
       - ./data:/app/data
       - ./guild_config.db:/app/guild_config.db
+      # Logs directory
+      - bot-logs:/app/logs
+      # Cache directory for blocklists
+      - bot-cache:/app/.cache
     networks:
       - bot-network
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
-        max-file: "3"
+        max-file: "5"
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.path.insert(0, '/app'); sys.path.insert(0, '/app/src'); import discord; from src.core.config import config; print('Health check passed')"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 30s
 
 networks:
   bot-network:
@@ -24,4 +45,8 @@ networks:
 
 volumes:
   bot-data:
+    driver: local
+  bot-logs:
+    driver: local
+  bot-cache:
     driver: local

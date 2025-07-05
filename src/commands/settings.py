@@ -3,6 +3,8 @@ Settings command for bot configuration
 """
 import discord
 import logging
+import json
+import re
 from discord import app_commands
 from typing import Optional
 
@@ -11,7 +13,11 @@ from guild_config import (
     set_guild_timeout_duration, set_guild_anti_phish_enabled,
     set_guild_anti_malware_enabled, set_guild_anti_piracy_enabled,
     set_guild_bypass_roles, set_guild_max_attempts, get_guild_bypass_roles,
-    get_autoresponder_rule_count
+    get_autoresponder_rule_count, get_guild_autoresponder_use_embeds,
+    set_guild_autoresponder_use_embeds, get_guild_autoresponder_use_reply,
+    set_guild_autoresponder_use_reply, set_guild_autoresponder_embed_config,
+    add_autoresponder_rule, remove_autoresponder_rule, get_autoresponder_rules,
+    toggle_autoresponder_rule, get_guild_autoresponder_embed_config
 )
 
 logger = logging.getLogger(__name__)
@@ -728,141 +734,490 @@ class AutoresponderSettingsView(discord.ui.View):
             return
 
         await interaction.response.send_modal(ToggleAutoresponderRuleModal(self.guild_id))
-
+    
     @discord.ui.button(label="🔄 Refresh", style=discord.ButtonStyle.primary, row=1)
     async def refresh_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Refresh the autoresponder settings display"""
         if not interaction.guild:
             await interaction.response.send_message("❌ This can only be used in a server.", ephemeral=True)
             return
-
+            
         try:
             embed = await self._create_autoresponder_embed(interaction.guild)
             await interaction.response.edit_message(embed=embed, view=self)
-
+            
         except Exception as e:
             logger.error(f"Error refreshing autoresponder settings: {e}")
             await interaction.response.send_message("❌ Error refreshing settings.", ephemeral=True)
+    
+    @discord.ui.button(label="📖 Pattern Help", style=discord.ButtonStyle.secondary, row=1)
+    async def pattern_help_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Show pattern help and examples"""
+        embed = discord.Embed(
+            title="📖 Autoresponder Pattern Guide",
+            description="Learn how to create effective trigger patterns:",
+            color=discord.Color.blue()
+        )
+        
+        # Plain text examples
+        embed.add_field(
+            name="📝 Plain Text Patterns",
+            value="• `hello` - matches anywhere 'hello' appears\n"
+                  "• `bad word` - matches the exact phrase\n"
+                  "• Use for simple word/phrase matching",
+            inline=False
+        )
+        
+        # Regex examples
+        embed.add_field(
+            name="🔣 Regex Patterns",
+            value="• `(?i)\\bhello\\b` - case insensitive word 'hello'\n"
+                  "• `(?i)\\b(hi|hello|hey)\\b` - matches hi, hello, or hey\n"
+                  "• `(?i)\\bballs?\\b` - matches 'ball' or 'balls'\n"
+                  "• `^spam` - matches messages starting with 'spam'\n"
+                  "• `\\d{3,}` - matches 3 or more digits",
+            inline=False
+        )
+        
+        # Pattern options
+        embed.add_field(
+            name="⚙️ Pattern Options",
+            value="In the 'Options' field, you can specify:\n"
+                  "• `case_sensitive=true` - make matching case sensitive\n"
+                  "• `case_sensitive=false` - case insensitive (default)\n"
+                  "• `embed=true` - force embed format for this rule\n"
+                  "• Example: `case_sensitive=false, embed=true`\n"
+                  "• Leave empty for auto-detection",
+            inline=False
+        )
+        
+        # JSON Embed format
+        embed.add_field(
+            name="🎨 JSON Embed Format",
+            value="Create rich embeds using JSON in the response:\n"
+                  "```json\n"
+                  '{"title": "My Title", "description": "Content", "color": "blue"}\n'
+                  "```\n"
+                  "• Available colors: red, blue, green, yellow, purple, orange, #hex\n"
+                  "• Add fields: `\"fields\": [{\"name\": \"Field\", \"value\": \"Text\"}]`\n"
+                  "• Auto-detected when response starts with `{` and contains embed fields",
+            inline=False
+        )
+        
+        # Common regex symbols
+        embed.add_field(
+            name="🔤 Common Regex Symbols",
+            value="• `\\b` - word boundary\n"
+                  "• `(?i)` - case insensitive flag\n"
+                  "• `|` - OR operator\n"
+                  "• `+` - one or more\n"
+                  "• `*` - zero or more\n"
+                  "• `?` - optional\n"
+                  "• `^` - start of message\n"
+                  "• `$` - end of message",
+            inline=False
+        )
+        
+        embed.set_footer(text="💡 Copy the pattern exactly, including special characters like \\b and (?i)")
+        
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="🎨 Configure Embed", style=discord.ButtonStyle.secondary, row=3)
+    async def configure_embed_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Configure embed appearance settings"""
+        if not self._check_permissions(interaction):
+            await interaction.response.send_message("❌ You need 'Manage Messages' permission to use this.",
+                                                    ephemeral=True)
+            return
+
+        if not interaction.guild:
+            await interaction.response.send_message("❌ This can only be used in a server.", ephemeral=True)
+            return
+
+        await interaction.response.send_modal(ConfigureEmbedModal(self.guild_id))
 
     async def _create_autoresponder_embed(self, guild: discord.Guild) -> discord.Embed:
         """Create the autoresponder settings embed"""
-        from guild_config import get_autoresponder_rules, get_autoresponder_rule_count
-        from src.core.config import config as bot_config
-
         embed = discord.Embed(
             title="🤖 Autoresponder Settings",
-            description="Manage autoresponder rules for this server:",
-            color=discord.Color.green()
+            description="Configure autoresponder rules and settings:",
+            color=discord.Color.blue()
         )
 
-        # Autoresponder status
-        autoresponder_status = "✅ Enabled" if bot_config.AUTORESPONDER_ENABLED else "❌ Disabled"
-        embed.add_field(
-            name="🔄 Status",
-            value=autoresponder_status,
-            inline=True
-        )
-
-        # Rule count
+        # Get current settings
+        use_embeds = get_guild_autoresponder_use_embeds(guild.id)
+        use_reply = get_guild_autoresponder_use_reply(guild.id)
         rule_count = get_autoresponder_rule_count(guild.id)
+        embed_config = get_guild_autoresponder_embed_config(guild.id)
+
+        # Settings status
         embed.add_field(
-            name="📊 Rules Count",
-            value=f"{rule_count} rule(s) configured",
-            inline=True
+            name="⚙️ Current Settings",
+            value=f"**Output Format:** {'🎨 Embeds' if use_embeds else '📝 Plain Text'}\n"
+                  f"**Reply Mode:** {'✅ Enabled' if use_reply else '❌ Disabled'}\n"
+                  f"**Active Rules:** {rule_count}",
+            inline=False
         )
 
-        # Recent rules (up to 3)
-        try:
-            rules = get_autoresponder_rules(guild.id)
-            if rules:
-                recent_rules = rules[:3]  # Show first 3 rules
-                rules_text = []
-                for rule in recent_rules:
-                    status = "✅" if rule.get('enabled', True) else "❌"
-                    rules_text.append(f"{status} **{rule['rule_name']}**")
-
-                embed.add_field(
-                    name="📋 Recent Rules",
-                    value="\n".join(rules_text) if rules_text else "No rules configured",
-                    inline=False
-                )
-        except Exception as e:
-            logger.error(f"Error getting autoresponder rules: {e}")
+        # Embed configuration (if embeds are enabled)
+        if use_embeds:
+            embed_title = embed_config.get('title', '') or "No title"
+            embed_color = embed_config.get('color', 'blue')
+            custom_footer = embed_config.get('custom_footer', '') or "No footer"
+            
             embed.add_field(
-                name="📋 Rules",
-                value="Error loading rules",
+                name="🎨 Embed Configuration",
+                value=f"**Title:** {embed_title}\n"
+                      f"**Color:** {embed_color}\n"
+                      f"**Footer:** {custom_footer}",
                 inline=False
             )
 
-        embed.set_footer(text="Use the buttons below to manage autoresponder rules")
+        # Usage instructions
+        embed.add_field(
+            name="📖 Quick Help",
+            value="• **Add Rule:** Create new autoresponder patterns\n"
+                  "• **List Rules:** View all configured rules\n"
+                  "• **Remove Rule:** Delete existing rules\n"
+                  "• **Toggle Rule:** Enable/disable specific rules\n"
+                  "• **Configure Embed:** Customize embed appearance\n"
+                  "• **Pattern Help:** Learn about regex and patterns\n"
+                  "• Use `/settings embed-examples` for JSON embed help",
+            inline=False
+        )
 
+        # Pattern types info
+        embed.add_field(
+            name="🎯 Pattern Types Supported",
+            value="**📝 Plain Text:** Simple word/phrase matching\n"
+                  "**🔣 Regex:** Advanced pattern matching (auto-detected)\n"
+                  "**🎨 JSON Embeds:** Rich embed responses (auto-detected)",
+            inline=False
+        )
+
+        embed.set_footer(text=f"Server: {guild.name} | Use buttons below to manage autoresponder")
         return embed
 
 
+@settings_group.command(name="embed-examples", description="Show JSON embed examples for autoresponder")
+async def embed_examples(interaction: discord.Interaction):
+    """Show examples of JSON embed formats for autoresponder"""
+    embed = discord.Embed(
+        title="🎨 JSON Embed Examples for Autoresponder",
+        description="Copy these JSON examples to create rich embed responses:",
+        color=discord.Color.blue()
+    )
+    
+    # Basic embed
+    embed.add_field(
+        name="🔸 Basic Embed",
+        value="```json\n" + """{
+  "title": "Welcome!",
+  "description": "Thanks for joining our server!",
+  "color": "green"
+}""" + "\n```",
+        inline=False
+    )
+    
+    # Embed with fields
+    embed.add_field(
+        name="🔸 Embed with Fields",
+        value="```json\n" + """{
+  "title": "Server Rules",
+  "description": "Please follow these important rules:",
+  "color": "#ff6b6b",
+  "fields": [
+    {"name": "Rule 1", "value": "Be respectful", "inline": true},
+    {"name": "Rule 2", "value": "No spam", "inline": true},
+    {"name": "Rule 3", "value": "Have fun!", "inline": false}
+  ]
+}""" + "\n```",
+        inline=False
+    )
+    
+    # Embed with footer and author
+    embed.add_field(
+        name="🔸 Complete Embed",
+        value="```json\n" + """{
+  "title": "🎉 Event Announcement",
+  "description": "Join us for our special event!",
+  "color": "purple",
+  "author": {"name": "Event Team", "icon_url": "https://example.com/icon.png"},
+  "footer": {"text": "Event starts soon!", "icon_url": "https://example.com/footer.png"},
+  "thumbnail": "https://example.com/thumb.png",
+  "fields": [
+    {"name": "📅 Date", "value": "Tomorrow", "inline": true},
+    {"name": "⏰ Time", "value": "8 PM EST", "inline": true}
+  ]
+}""" + "\n```",
+        inline=False
+    )
+    
+    # Available colors
+    embed.add_field(
+        name="🎨 Available Colors",
+        value="**Named colors:** red, blue, green, yellow, purple, orange\n"
+              "**Hex colors:** #ff0000, #00ff00, #0000ff, etc.\n"
+              "**Examples:** `\"color\": \"red\"` or `\"color\": \"#ff6b6b\"`",
+        inline=False
+    )
+    
+    # Usage tips
+    embed.add_field(
+        name="💡 Usage Tips",
+        value="• JSON must be valid (use quotes around strings)\n"
+              "• Embed format is auto-detected when response starts with `{`\n"
+              "• You can force embed mode with `embed=true` in options\n"
+              "• Mix with server embed settings for consistent styling",
+        inline=False
+    )
+    
+    embed.set_footer(text="💡 Test your JSON at jsonlint.com before using!")
+    
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
 class AddAutoresponderRuleModal(discord.ui.Modal, title="Add Autoresponder Rule"):
+    """Modal for adding new autoresponder rules"""
+    
     def __init__(self, guild_id: int):
         super().__init__()
         self.guild_id = guild_id
 
         self.rule_name = discord.ui.TextInput(
             label="Rule Name",
-            placeholder="Enter a name for this rule",
-            max_length=50
+            placeholder="Enter a unique name for this rule",
+            max_length=100,
+            required=True
         )
         self.add_item(self.rule_name)
 
         self.trigger_pattern = discord.ui.TextInput(
             label="Trigger Pattern",
-            placeholder="Enter the text/pattern that will trigger the response",
-            max_length=200
+            placeholder="Enter pattern (plain text or regex)",
+            max_length=500,
+            required=True
         )
         self.add_item(self.trigger_pattern)
 
         self.response_message = discord.ui.TextInput(
             label="Response Message",
-            placeholder="Enter the response message",
+            placeholder="Enter response message or JSON embed",
             style=discord.TextStyle.paragraph,
-            max_length=1000
+            max_length=2000,
+            required=True
         )
         self.add_item(self.response_message)
 
+        self.options = discord.ui.TextInput(
+            label="Options (optional)",
+            placeholder="case_sensitive=false, embed=true",
+            max_length=200,
+            required=False
+        )
+        self.add_item(self.options)
+
+    def _is_regex_pattern(self, pattern: str) -> bool:
+        """Auto-detect if a pattern is regex based on common regex features"""
+        regex_indicators = [
+            r'\(',          # Groups
+            r'\[',          # Character classes  
+            r'\{',          # Quantifiers
+            r'\+',          # One or more
+            r'\*',          # Zero or more
+            r'\?',          # Optional
+            r'\|',          # OR operator
+            r'\^',          # Start anchor
+            r'\$',          # End anchor
+            r'\\b',         # Word boundary
+            r'\\d',         # Digit class
+            r'\\w',         # Word class
+            r'\\s',         # Whitespace class
+            r'\(\?',        # Non-capturing groups or flags
+        ]
+        
+        return any(re.search(indicator, pattern) for indicator in regex_indicators)
+
+    def _is_json_embed(self, response: str) -> bool:
+        """Check if response is a JSON embed"""
+        response = response.strip()
+        if not (response.startswith('{') and response.endswith('}')):
+            return False
+        
+        try:
+            data = json.loads(response)
+            embed_fields = ['title', 'description', 'color', 'fields', 'author', 'footer', 'thumbnail', 'image']
+            return isinstance(data, dict) and any(field in data for field in embed_fields)
+        except (json.JSONDecodeError, TypeError):
+            return False
+
+    def _create_embed_preview(self, embed_data: dict) -> discord.Embed:
+        """Create a Discord embed from JSON data"""
+        embed = discord.Embed()
+        
+        if 'title' in embed_data:
+            embed.title = str(embed_data['title'])[:256]
+        
+        if 'description' in embed_data:
+            embed.description = str(embed_data['description'])[:4096]
+        
+        if 'color' in embed_data:
+            color = embed_data['color']
+            if isinstance(color, str):
+                if color.startswith('#'):
+                    embed.color = discord.Color(int(color[1:], 16))
+                else:
+                    color_map = {
+                        'red': discord.Color.red(),
+                        'blue': discord.Color.blue(),
+                        'green': discord.Color.green(),
+                        'yellow': discord.Color.yellow(),
+                        'purple': discord.Color.purple(),
+                        'orange': discord.Color.orange(),
+                    }
+                    embed.color = color_map.get(color.lower(), discord.Color.blue())
+            elif isinstance(color, int):
+                embed.color = discord.Color(color)
+        
+        if 'fields' in embed_data and isinstance(embed_data['fields'], list):
+            for field in embed_data['fields'][:25]:  # Discord limit
+                if isinstance(field, dict) and 'name' in field and 'value' in field:
+                    embed.add_field(
+                        name=str(field['name'])[:256],
+                        value=str(field['value'])[:1024],
+                        inline=field.get('inline', True)
+                    )
+        
+        if 'author' in embed_data and isinstance(embed_data['author'], dict):
+            author = embed_data['author']
+            embed.set_author(
+                name=str(author.get('name', ''))[:256],
+                icon_url=author.get('icon_url'),
+                url=author.get('url')
+            )
+        
+        if 'footer' in embed_data and isinstance(embed_data['footer'], dict):
+            footer = embed_data['footer']
+            embed.set_footer(
+                text=str(footer.get('text', ''))[:2048],
+                icon_url=footer.get('icon_url')
+            )
+        
+        if 'thumbnail' in embed_data:
+            embed.set_thumbnail(url=embed_data['thumbnail'])
+        
+        if 'image' in embed_data:
+            embed.set_image(url=embed_data['image'])
+        
+        return embed
+
     async def on_submit(self, interaction: discord.Interaction):
         try:
-            from guild_config import add_autoresponder_rule
+            if not interaction.guild:
+                await interaction.response.send_message("❌ This can only be used in a server.", ephemeral=True)
+                return
 
-            success = add_autoresponder_rule(
+            rule_name = self.rule_name.value.strip()
+            trigger_pattern = self.trigger_pattern.value.strip()
+            response_message = self.response_message.value.strip()
+            options_str = self.options.value.strip() if self.options.value else ""
+
+            # Parse options
+            options = {}
+            if options_str:
+                for option in options_str.split(','):
+                    if '=' in option:
+                        key, value = option.split('=', 1)
+                        key = key.strip().lower()
+                        value = value.strip().lower()
+                        if value in ['true', 'false']:
+                            options[key] = value == 'true'
+                        else:
+                            options[key] = value
+
+            # Auto-detect pattern type
+            is_regex = self._is_regex_pattern(trigger_pattern)
+            case_sensitive = options.get('case_sensitive', False)
+
+            # Check if response is JSON embed
+            is_json_embed = self._is_json_embed(response_message)
+
+            # Validate JSON if it's detected as embed
+            if is_json_embed:
+                try:
+                    embed_data = json.loads(response_message)
+                    # Create preview embed
+                    preview_embed = self._create_embed_preview(embed_data)
+                except json.JSONDecodeError as e:
+                    await interaction.response.send_message(
+                        f"❌ Invalid JSON format: {str(e)}\n\nPlease check your JSON syntax and try again.",
+                        ephemeral=True
+                    )
+                    return
+
+            # Add the rule
+            result = add_autoresponder_rule(
                 self.guild_id,
-                self.rule_name.value.strip(),
-                self.trigger_pattern.value.strip(),
-                self.response_message.value.strip(),
-                is_regex=False,
-                case_sensitive=False
+                rule_name,
+                trigger_pattern,
+                response_message,
+                is_regex=is_regex,
+                case_sensitive=case_sensitive
             )
 
-            if success:
+            if result:
                 embed = discord.Embed(
                     title="✅ Autoresponder Rule Added",
-                    description=f"Rule **{self.rule_name.value}** has been created successfully.",
+                    description=f"Successfully added rule: **{rule_name}**",
                     color=discord.Color.green()
                 )
-                embed.add_field(name="Trigger", value=f"`{self.trigger_pattern.value}`", inline=False)
-                embed.add_field(name="Response", value=self.response_message.value[:100] + (
-                    "..." if len(self.response_message.value) > 100 else ""), inline=False)
-            else:
-                embed = discord.Embed(
-                    title="❌ Error Adding Rule",
-                    description="Failed to add the autoresponder rule. A rule with this name may already exist.",
-                    color=discord.Color.red()
+                
+                embed.add_field(
+                    name="🎯 Trigger Pattern",
+                    value=f"`{trigger_pattern}`\n{'🔣 Regex pattern' if is_regex else '📝 Plain text pattern'}",
+                    inline=False
                 )
-
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+                
+                if is_json_embed:
+                    embed.add_field(
+                        name="📋 Response Type", 
+                        value="🎨 JSON Embed (see preview below)",
+                        inline=False
+                    )
+                    await interaction.response.send_message(embed=embed, ephemeral=True)
+                    
+                    # Send embed preview
+                    try:
+                        embed_data = json.loads(response_message)
+                        preview_embed = self._create_embed_preview(embed_data)
+                        preview_embed.set_footer(text="📋 Embed Preview - This is how your autoresponder embed will look")
+                        await interaction.followup.send(embed=preview_embed, ephemeral=True)
+                    except:
+                        pass
+                else:
+                    embed.add_field(
+                        name="📋 Response Message",
+                        value=response_message[:500] + ("..." if len(response_message) > 500 else ""),
+                        inline=False
+                    )
+                    await interaction.response.send_message(embed=embed, ephemeral=True)
+            else:
+                await interaction.response.send_message(
+                    f"❌ Failed to add autoresponder rule. Rule name '{rule_name}' may already exist.",
+                    ephemeral=True
+                )
 
         except Exception as e:
             logger.error(f"Error adding autoresponder rule: {e}")
-            await interaction.response.send_message("❌ Error adding autoresponder rule.", ephemeral=True)
+            await interaction.response.send_message(
+                "❌ Error adding autoresponder rule. Please try again.",
+                ephemeral=True
+            )
 
 
 class RemoveAutoresponderRuleModal(discord.ui.Modal, title="Remove Autoresponder Rule"):
+    """Modal for removing autoresponder rules"""
+    
     def __init__(self, guild_id: int):
         super().__init__()
         self.guild_id = guild_id
@@ -870,37 +1225,57 @@ class RemoveAutoresponderRuleModal(discord.ui.Modal, title="Remove Autoresponder
         self.rule_name = discord.ui.TextInput(
             label="Rule Name",
             placeholder="Enter the exact name of the rule to remove",
-            max_length=50
+            max_length=100,
+            required=True
         )
         self.add_item(self.rule_name)
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
-            from guild_config import remove_autoresponder_rule
+            if not interaction.guild:
+                await interaction.response.send_message("❌ This can only be used in a server.", ephemeral=True)
+                return
 
-            success = remove_autoresponder_rule(self.guild_id, self.rule_name.value.strip())
+            rule_name = self.rule_name.value.strip()
+
+            # Check if rule exists first
+            rules = get_autoresponder_rules(self.guild_id)
+            rule_exists = any(rule['rule_name'] == rule_name for rule in rules)
+
+            if not rule_exists:
+                await interaction.response.send_message(
+                    f"❌ No autoresponder rule named '{rule_name}' found.",
+                    ephemeral=True
+                )
+                return
+
+            # Remove the rule
+            success = remove_autoresponder_rule(self.guild_id, rule_name)
 
             if success:
                 embed = discord.Embed(
                     title="✅ Autoresponder Rule Removed",
-                    description=f"Rule **{self.rule_name.value}** has been removed successfully.",
+                    description=f"Successfully removed rule: **{rule_name}**",
                     color=discord.Color.green()
                 )
+                await interaction.response.send_message(embed=embed, ephemeral=True)
             else:
-                embed = discord.Embed(
-                    title="❌ Rule Not Found",
-                    description=f"No autoresponder rule found with the name **{self.rule_name.value}**.",
-                    color=discord.Color.red()
+                await interaction.response.send_message(
+                    f"❌ Failed to remove autoresponder rule '{rule_name}'.",
+                    ephemeral=True
                 )
-
-            await interaction.response.send_message(embed=embed, ephemeral=True)
 
         except Exception as e:
             logger.error(f"Error removing autoresponder rule: {e}")
-            await interaction.response.send_message("❌ Error removing autoresponder rule.", ephemeral=True)
+            await interaction.response.send_message(
+                "❌ Error removing autoresponder rule. Please try again.",
+                ephemeral=True
+            )
 
 
 class ToggleAutoresponderRuleModal(discord.ui.Modal, title="Toggle Autoresponder Rule"):
+    """Modal for toggling autoresponder rules on/off"""
+    
     def __init__(self, guild_id: int):
         super().__init__()
         self.guild_id = guild_id
@@ -908,77 +1283,225 @@ class ToggleAutoresponderRuleModal(discord.ui.Modal, title="Toggle Autoresponder
         self.rule_name = discord.ui.TextInput(
             label="Rule Name",
             placeholder="Enter the exact name of the rule to toggle",
-            max_length=50
+            max_length=100,
+            required=True
         )
         self.add_item(self.rule_name)
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
-            from guild_config import get_autoresponder_rules, toggle_autoresponder_rule
-
-            # First, find the rule to get its current state
-            rules = get_autoresponder_rules(self.guild_id)
-            rule_name = self.rule_name.value.strip()
-
-            target_rule = None
-            for rule in rules:
-                if rule['rule_name'] == rule_name:
-                    target_rule = rule
-                    break
-
-            if target_rule is None:
-                embed = discord.Embed(
-                    title="❌ Rule Not Found",
-                    description=f"No autoresponder rule found with the name **{rule_name}**.",
-                    color=discord.Color.red()
-                )
-                await interaction.response.send_message(embed=embed, ephemeral=True)
+            if not interaction.guild:
+                await interaction.response.send_message("❌ This can only be used in a server.", ephemeral=True)
                 return
 
-            # Toggle the rule state
-            current_state = target_rule.get('enabled', True)
-            new_state = not current_state
+            rule_name = self.rule_name.value.strip()
 
+            # Check if rule exists first
+            rules = get_autoresponder_rules(self.guild_id)
+            rule = next((r for r in rules if r['rule_name'] == rule_name), None)
+
+            if not rule:
+                await interaction.response.send_message(
+                    f"❌ No autoresponder rule named '{rule_name}' found.",
+                    ephemeral=True
+                )
+                return
+
+            # Toggle the rule (flip current state)
+            current_state = rule.get('enabled', True)
+            new_state = not current_state
             success = toggle_autoresponder_rule(self.guild_id, rule_name, new_state)
 
             if success:
-                status = "enabled" if new_state else "disabled"
+                is_enabled = new_state
+
                 embed = discord.Embed(
                     title="✅ Autoresponder Rule Toggled",
-                    description=f"Rule **{rule_name}** has been **{status}**.",
-                    color=discord.Color.green()
+                    description=f"Rule **{rule_name}** is now {'✅ **Enabled**' if is_enabled else '❌ **Disabled**'}",
+                    color=discord.Color.green() if is_enabled else discord.Color.red()
                 )
+                await interaction.response.send_message(embed=embed, ephemeral=True)
             else:
-                embed = discord.Embed(
-                    title="❌ Error Toggling Rule",
-                    description=f"Failed to toggle rule **{rule_name}**.",
-                    color=discord.Color.red()
+                await interaction.response.send_message(
+                    f"❌ Failed to toggle autoresponder rule '{rule_name}'.",
+                    ephemeral=True
                 )
-
-            await interaction.response.send_message(embed=embed, ephemeral=True)
 
         except Exception as e:
             logger.error(f"Error toggling autoresponder rule: {e}")
-            await interaction.response.send_message("❌ Error toggling autoresponder rule.", ephemeral=True)
+            await interaction.response.send_message(
+                "❌ Error toggling autoresponder rule. Please try again.",
+                ephemeral=True
+            )
 
 
-@settings_group.command(name="view", description="View current server settings")
-@app_commands.default_permissions(manage_guild=True)
-async def view_settings(interaction: discord.Interaction):
-    """Display current guild settings with interactive buttons"""
-    try:
-        if not interaction.guild:
-            await interaction.response.send_message("❌ This command can only be used in a server.", ephemeral=True)
-            return
+class ConfigureEmbedModal(discord.ui.Modal, title="Configure Autoresponder Embed"):
+    """Modal for configuring autoresponder embed appearance"""
+    
+    def __init__(self, guild_id: int):
+        super().__init__()
+        self.guild_id = guild_id
 
-        view = SettingsView(interaction.guild.id)
-        embed = await view._create_settings_embed(interaction.guild)
+        # Get current embed configuration
+        from guild_config import get_guild_autoresponder_embed_config
+        embed_config = get_guild_autoresponder_embed_config(guild_id)
 
-        await interaction.response.send_message(embed=embed, view=view)
+        self.embed_title = discord.ui.TextInput(
+            label="Embed Title (optional)",
+            placeholder="Leave empty for no title",
+            default=embed_config.get('title', ''),
+            max_length=256,
+            required=False
+        )
+        self.add_item(self.embed_title)
 
-    except Exception as e:
-        logger.error(f"Error in view settings command: {e}")
-        await interaction.response.send_message("❌ Error retrieving settings.", ephemeral=True)
+        self.embed_color = discord.ui.TextInput(
+            label="Embed Color",
+            placeholder="red, blue, green, yellow, purple, orange, or #hex",
+            default=embed_config.get('color', 'blue'),
+            max_length=20,
+            required=False
+        )
+        self.add_item(self.embed_color)
+
+        self.custom_footer = discord.ui.TextInput(
+            label="Custom Footer (optional)",
+            placeholder="Leave empty for no footer",
+            default=embed_config.get('custom_footer', ''),
+            max_length=100,
+            required=False
+        )
+        self.add_item(self.custom_footer)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            if not interaction.guild:
+                await interaction.response.send_message("❌ This can only be used in a server.", ephemeral=True)
+                return
+
+            embed_title = self.embed_title.value.strip()
+            embed_color = self.embed_color.value.strip() or 'blue'
+            custom_footer = self.custom_footer.value.strip()
+
+            # Validate color
+            valid_colors = ['red', 'blue', 'green', 'yellow', 'purple', 'orange']
+            if embed_color.lower() not in valid_colors and not embed_color.startswith('#'):
+                await interaction.response.send_message(
+                    f"❌ Invalid color. Use one of: {', '.join(valid_colors)} or a hex color like #ff0000",
+                    ephemeral=True
+                )
+                return
+
+            # Validate hex color if provided
+            if embed_color.startswith('#'):
+                try:
+                    int(embed_color[1:], 16)
+                    if len(embed_color) not in [4, 7]:  # #rgb or #rrggbb
+                        raise ValueError()
+                except ValueError:
+                    await interaction.response.send_message(
+                        "❌ Invalid hex color format. Use #rgb or #rrggbb (e.g., #f00 or #ff0000)",
+                        ephemeral=True
+                    )
+                    return
+
+            # Save configuration
+            from guild_config import set_guild_autoresponder_embed_config
+            set_guild_autoresponder_embed_config(
+                self.guild_id,
+                title=embed_title,
+                color=embed_color,
+                custom_footer=custom_footer
+            )
+
+            # Create response embed with preview
+            embed = discord.Embed(
+                title="✅ Embed Configuration Updated",
+                description="Autoresponder embed settings have been updated:",
+                color=discord.Color.green()
+            )
+
+            embed.add_field(
+                name="🎨 Title",
+                value=f"`{embed_title}`" if embed_title else "No title",
+                inline=True
+            )
+
+            embed.add_field(
+                name="🌈 Color",
+                value=f"`{embed_color}`",
+                inline=True
+            )
+
+            embed.add_field(
+                name="📝 Footer",
+                value=f"`{custom_footer}`" if custom_footer else "No footer",
+                inline=True
+            )
+
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+
+            # Send a preview of how autoresponder embeds will look
+            try:
+                # Parse color for preview
+                color = discord.Color.blue()  # Default
+                if embed_color.lower() == 'red':
+                    color = discord.Color.red()
+                elif embed_color.lower() == 'green':
+                    color = discord.Color.green()
+                elif embed_color.lower() == 'yellow':
+                    color = discord.Color.yellow()
+                elif embed_color.lower() == 'purple':
+                    color = discord.Color.purple()
+                elif embed_color.lower() == 'orange':
+                    color = discord.Color.orange()
+                elif embed_color.startswith('#'):
+                    color = discord.Color(int(embed_color[1:], 16))
+
+                preview_embed = discord.Embed(
+                    title=embed_title if embed_title else None,
+                    description="This is how your autoresponder embeds will look!",
+                    color=color
+                )
+
+                if custom_footer:
+                    preview_embed.set_footer(text=custom_footer)
+
+                preview_embed.set_author(name="🔍 Embed Preview")
+
+                await interaction.followup.send(embed=preview_embed, ephemeral=True)
+
+            except Exception as e:
+                logger.error(f"Error creating embed preview: {e}")
+
+        except Exception as e:
+            logger.error(f"Error configuring embed settings: {e}")
+            await interaction.response.send_message(
+                "❌ Error saving embed configuration. Please try again.",
+                ephemeral=True
+            )
+
+
+@settings_group.command(name="view", description="View and configure bot settings for this server")
+async def settings_view(interaction: discord.Interaction):
+    """Main settings command that shows the interactive settings panel"""
+    if not interaction.guild:
+        await interaction.response.send_message("❌ This command can only be used in a server.", ephemeral=True)
+        return
+
+    # Check permissions
+    if not isinstance(interaction.user, discord.Member):
+        await interaction.response.send_message("❌ This command can only be used by server members.", ephemeral=True)
+        return
+
+    if not interaction.user.guild_permissions.manage_guild:
+        await interaction.response.send_message("❌ You need 'Manage Server' permission to use this command.", ephemeral=True)
+        return
+
+    # Create settings view
+    view = SettingsView(interaction.guild.id)
+    embed = await view._create_settings_embed(interaction.guild)
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
 # Export the command group

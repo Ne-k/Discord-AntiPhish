@@ -1010,13 +1010,28 @@ async def dev_sync(interaction: discord.Interaction):
     try:
         await interaction.response.defer(ephemeral=True)
 
+        # Check if bot is ready
+        if not interaction.client.is_ready():
+            await interaction.followup.send("❌ Bot is not ready yet. Please wait a moment and try again.", ephemeral=True)
+            return
+
         synced = await interaction.client.tree.sync()  # type: ignore
         await interaction.followup.send(f"✅ Synced {len(synced)} commands successfully.", ephemeral=True)
 
+    except discord.HTTPException as e:
+        logger.error(f"Discord HTTP error syncing commands: {e}")
+        track_error("dev_sync_http", e)
+        try:
+            await interaction.followup.send(f"❌ Discord API error: {str(e)}\n\nThis may be a temporary issue. Please try again in a few moments.", ephemeral=True)
+        except:
+            logger.error("Could not send error response - interaction may have expired")
     except Exception as e:
         logger.error(f"Error syncing commands: {e}")
         track_error("dev_sync", e)
-        await interaction.followup.send(f"❌ Error syncing commands: {str(e)}", ephemeral=True)
+        try:
+            await interaction.followup.send(f"❌ Error syncing commands: {str(e)}", ephemeral=True)
+        except:
+            logger.error("Could not send error response - interaction may have expired")
 
 
 @dev_group.command(name="stats", description="Show system statistics")

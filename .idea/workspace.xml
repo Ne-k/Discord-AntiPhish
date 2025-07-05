@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="39ce5a8e-9d48-4f5d-bd25-494e4d59f1e6" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/.dockerignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.vscode/launch.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.vscode/settings.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.vscode/tasks.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Dockerfile" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/phishing-bot.code-workspace" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/commands/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/commands/antiphish.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/commands/autoresponder.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/commands/dev.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/commands/help.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/commands/performance.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/commands/ping.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/commands/settings.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/commands/settings_new.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/core/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/core/bot.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/core/config.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/core/main.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/events/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/events/error.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/events/message.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/events/ready.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/features/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/features/autoresponder.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/features/user_attempts.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/handlers/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/handlers/command_handler.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/handlers/event_handler.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/optimizations/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/optimizations/cache.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/optimizations/engine.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/optimizations/memory_manager.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/optimizations/performance.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/tests/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/tests/test_full_system.py" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "associatedIndex": 7
+}]]></component>
+  <component name="ProjectId" id="2zRSOxvjZ2XVdVXgkbSU3X8zEWL" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "git-widget-placeholder": "master",
+    "ignore.virus.scanning.warn.message": "true",
+    "nodejs_package_manager_path": "npm",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-js-predefined-d6986cc7102b-b26f3e71634d-JavaScript-PY-251.26094.141" />
+        <option value="bundled-python-sdk-9f8e2b94138c-36ea0e71a18c-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-251.26094.141" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="39ce5a8e-9d48-4f5d-bd25-494e4d59f1e6" name="Changes" comment="" />
+      <created>1751692365385</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1751692365385</updated>
+      <workItem from="1751692366627" duration="139000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+</project>

@@ -98,4 +98,4 @@ venv.bak/
 .dmypy.json
 dmypy.json
 
-guild_config.*
+guild_config.db
